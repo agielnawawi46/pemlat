@@ -21,6 +21,18 @@ const pool = new Pool({
 app.use(cors());
 app.use(express.json());
 
+// Import routes
+const authRoutes = require("./src/routes/authRoutes");
+const equipmentRoutes = require("./src/routes/equipmentRoutes");
+const roomRoutes = require("./src/routes/roomRoutes");
+const borrowRoutes = require("./src/routes/borrowRoutes");
+
+// Gunakan routes
+app.use("/api/auth", authRoutes);
+app.use("/api/equipment", equipmentRoutes);
+app.use("/api/rooms", roomRoutes);
+app.use("/api/borrow", borrowRoutes);
+
 // Route default
 app.get("/", (req, res) => {
   res.send("Backend bepemlat jalan 🚀");

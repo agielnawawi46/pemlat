@@ -1,19 +1,22 @@
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import authRoutes from './routes/authRoutes'; // Sesuaikan dengan path kamu
+const express = require('express');
+const cors = require('cors');
+require('dotenv').config();
 
-dotenv.config();
+const authRoutes = require('./routes/authRoutes');
+const equipmentRoutes = require('./routes/equipmentRoutes');
+const roomRoutes = require('./routes/roomRoutes');
+const borrowRoutes = require('./routes/borrowRoutes');
+
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-// Routing
-app.use('/auth', authRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/equipment', equipmentRoutes);
+app.use('/api/rooms', roomRoutes);
+app.use('/api/borrow', borrowRoutes);
 
-// Port
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Backend running on port ${PORT}`);
 });
