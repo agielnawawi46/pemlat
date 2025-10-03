@@ -2,7 +2,7 @@
 const pool = require("../config/db");
 
 // GET semua request peminjaman
-exports.getAllBorrows = async (req, res) => {
+exports.getAllBorrowRequests = async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT br.*, u.name AS user_name 
@@ -17,7 +17,7 @@ exports.getAllBorrows = async (req, res) => {
 };
 
 // GET request peminjaman by ID
-exports.getBorrowById = async (req, res) => {
+exports.getBorrowRequestById = async (req, res) => {
   const { id } = req.params;
   try {
     const result = await pool.query(
@@ -39,7 +39,7 @@ exports.getBorrowById = async (req, res) => {
 };
 
 // CREATE request peminjaman
-exports.createBorrow = async (req, res) => {
+exports.createBorrowRequest = async (req, res) => {
   const { user_id, item_type, item_id, borrow_date, return_date } = req.body;
   try {
     const result = await pool.query(
@@ -78,8 +78,8 @@ exports.updateBorrowStatus = async (req, res) => {
   }
 };
 
-// DELETE request peminjaman (jika dibatalkan)
-exports.deleteBorrow = async (req, res) => {
+// DELETE request peminjaman
+exports.deleteBorrowRequest = async (req, res) => {
   const { id } = req.params;
   try {
     const result = await pool.query(
