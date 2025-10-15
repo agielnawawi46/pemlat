@@ -1,68 +1,96 @@
-const db = require('../config/db');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
-require('dotenv').config();
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const pool = require("../config/db");
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
-
-// Mahasiswa login: name + nim
-// Admin login: email + password
-async function login(req, res) {
+exports.register = async (req, res) => {
   try {
-    const { name, nim, email, password } = req.body;
+    const { name, email, password, role, nim } = req.body;
 
-    if ((name && nim) && (!email && !password)) {
-      // mahasiswa flow
-      const q = 'SELECT id, name, nim, role FROM users WHERE name = $1 AND nim = $2';
-      const { rows } = await db.query(q, [name, nim]);
-      if (rows.length === 0) {
-        return res.status(401).json({ message: 'Mahasiswa not found' });
+    // Validasi berdasarkan role
+    if (role === "admin") {
+      if (!name || !email || !password || !role) {
+        return res.status(400).json({ message: "Semua field wajib diisi untuk admin!" });
       }
-      const user = rows[0];
-      const token = jwt.sign({
-        id: user.id,
-        name: user.name,
-        nim: user.nim,
-        role: user.role
-      }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-      return res.json({ token, user: { id: user.id, name: user.name, nim: user.nim, role: user.role } });
+    } else if (role === "mahasiswa") {
+      if (!nim || !password || !role) {
+        return res.status(400).json({ message: "Semua field wajib diisi untuk mahasiswa!" });
+      }
+    } else {
+      return res.status(400).json({ message: "Role tidak valid!" });
     }
 
-    if (email && password) {
-      // admin flow (or any user who has email+password)
-      const q = 'SELECT id, name, nim, email, password, role FROM users WHERE email = $1';
-      const { rows } = await db.query(q, [email]);
-      if (rows.length === 0) {
-        return res.status(401).json({ message: 'User not found' });
-      }
-      const user = rows[0];
-      if (!user.password) return res.status(401).json({ message: 'User has no password set' });
+    const hashedPassword = await bcrypt.hash(password, 10);
+    let result;
 
-      const match = await bcrypt.compare(password, user.password);
-      if (!match) return res.status(401).json({ message: 'Invalid credentials' });
-
-      const token = jwt.sign({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        nim: user.nim,
-        role: user.role
-      }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-
-      return res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    // Query berdasarkan role
+    if (role === "admin") {
+      result = await pool.query(
+        `INSERT INTO users (name, email, password, role)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, name, email, role`,
+        [name, email, hashedPassword, role]
+      );
+    } else if (role === "mahasiswa") {
+      result = await pool.query(
+        `INSERT INTO users (nim, password, role)
+         VALUES ($1, $2, $3)
+         RETURNING id, nim, role`,
+        [nim, hashedPassword, role]
+      );
     }
 
-    return res.status(400).json({ message: 'Provide name+nim (mahasiswa) or email+password (admin)' });
+    res.status(201).json({
+      message: "Registrasi berhasil",
+      user: result.rows[0],
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    console.error("Register error:", err);
+    res.status(500).json({ message: "Terjadi kesalahan server" });
   }
-}
+};
 
-async function me(req, res) {
-  // expects authMiddleware used
-  res.json({ user: req.user });
-}
+exports.login = async (req, res) => {
+  try {
+    const { nim, email, password } = req.body;
 
-module.exports = { login, me };
+    // Bisa login pakai email atau nim
+    const userQuery = nim
+      ? await pool.query("SELECT * FROM users WHERE nim = $1", [nim])
+      : await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+
+    const user = userQuery.rows[0];
+    if (!user) return res.status(404).json({ message: "User tidak ditemukan" });
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(401).json({ message: "Password salah" });
+
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    res.json({
+      message: "Login berhasil",
+      token,
+      user: { id: user.id, name: user.name, role: user.role },
+    });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ message: "Terjadi kesalahan server" });
+  }
+};
+
+exports.me = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await pool.query(
+      "SELECT id, name, email, nim, role FROM users WHERE id = $1",
+      [userId]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Me error:", err);
+    res.status(500).json({ message: "Gagal mengambil data user" });
+  }
+};
