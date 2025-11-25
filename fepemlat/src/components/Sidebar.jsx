@@ -10,7 +10,7 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   const menus = [
-    { name: "Dashboard", href: "/dashboard" },
+    { name: "Dashboard", href: "/dashboard/mahasiswa" },
     { name: "Alat", href: "/alat" },
     { name: "Ruangan", href: "/ruangan" },
     { name: "Tentang", href: "/tentang" },

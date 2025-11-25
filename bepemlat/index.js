@@ -2,13 +2,15 @@ const express = require("express");
 const { Pool } = require("pg");
 const dotenv = require("dotenv");
 const cors = require("cors");
+const path = require("path");
 
+// Load .env
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001; // kamu tadi pakai backend di 3001
 
-// PostgreSQL connection pool
+// 🔹 PostgreSQL connection pool
 const pool = new Pool({
   user: process.env.DB_USER,
   host: process.env.DB_HOST,
@@ -17,28 +19,35 @@ const pool = new Pool({
   port: process.env.DB_PORT,
 });
 
-// Middleware
+// 🔹 Middleware umum
 app.use(cors());
 app.use(express.json());
 
-// Import routes
+// 🔹 Middleware untuk menyajikan gambar (static files)
+app.use("/uploads", express.static(path.join(__dirname, "src/uploads")));
+
+// 🔹 Import routes
 const authRoutes = require("./src/routes/authRoutes");
 const equipmentRoutes = require("./src/routes/equipmentRoutes");
 const roomRoutes = require("./src/routes/roomRoutes");
 const borrowRoutes = require("./src/routes/borrowRoutes");
+const tutorialRoutes = require("./src/routes/tutorialRoutes");
+const categoryRoutes = require("./src/routes/categoryRoutes");
 
-// Gunakan routes
+// 🔹 Gunakan routes
 app.use("/api/auth", authRoutes);
 app.use("/api/equipment", equipmentRoutes);
 app.use("/api/rooms", roomRoutes);
 app.use("/api/borrow", borrowRoutes);
+app.use("/api/tutorials", tutorialRoutes);
+app.use("/api/categories", categoryRoutes);
 
-// Route default
+// 🔹 Route default
 app.get("/", (req, res) => {
-  res.send("Backend bepemlat jalan 🚀");
+  res.send("🚀 Backend bepemlat berjalan dengan baik!");
 });
 
-// Route tes koneksi database
+// 🔹 Route tes koneksi database
 app.get("/db-test", async (req, res) => {
   try {
     const result = await pool.query("SELECT NOW()");
@@ -52,7 +61,12 @@ app.get("/db-test", async (req, res) => {
   }
 });
 
-// Jalankan server
+// 🔹 Fallback 404 JSON
+app.use((req, res) => {
+  res.status(404).json({ error: "Endpoint tidak ditemukan" });
+});
+
+// 🔹 Jalankan server
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`✅ Backend running at http://localhost:${PORT}`);
 });

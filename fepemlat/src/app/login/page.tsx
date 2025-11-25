@@ -36,8 +36,8 @@ export default function LoginPage() {
 
       if (res.ok && data.token) {
         // Simpan token dan role
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("role", data.user.role);
+       localStorage.setItem("token", data.token);
+       localStorage.setItem("user", JSON.stringify(data.user)); // simpan seluruh user object
 
         // Arahkan sesuai role
         if (data.user.role === "admin") {
