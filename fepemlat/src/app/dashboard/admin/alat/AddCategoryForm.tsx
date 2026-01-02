@@ -27,7 +27,7 @@ export default function TambahKategoriForm({ onSelesai }: { onSelesai: () => voi
     }
 
     try {
-      const res = await fetch("http://localhost:3001/api/categories", {
+      const res = await fetch("http://localhost:5000/api/categories", {
         method: "POST",
         body: form,
       });

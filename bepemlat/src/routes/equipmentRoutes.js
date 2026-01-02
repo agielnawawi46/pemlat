@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const equipmentController = require("../controllers/equipmentController");
-const upload = require("../middlewares/upload");
+const upload = require("../middlewares/uploadMiddleware");
 
 // GET semua alat
 router.get("/", equipmentController.getAllEquipment);

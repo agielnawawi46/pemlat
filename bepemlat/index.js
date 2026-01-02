@@ -1,72 +1,57 @@
 const express = require("express");
-const { Pool } = require("pg");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const path = require("path");
 
-// Load .env
 dotenv.config();
-
 const app = express();
-const PORT = process.env.PORT || 3001; // kamu tadi pakai backend di 3001
+const PORT = process.env.PORT || 5000;
 
-// 🔹 PostgreSQL connection pool
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
-});
+// Database
+const sequelize = require("./src/config/db");
+require("./src/models");
 
-// 🔹 Middleware umum
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// 🔹 Middleware untuk menyajikan gambar (static files)
-app.use("/uploads", express.static(path.join(__dirname, "src/uploads")));
+// Static uploads
+const uploadsDir = path.join(process.cwd(), "uploads");
+app.use("/uploads", express.static(uploadsDir));
 
-// 🔹 Import routes
-const authRoutes = require("./src/routes/authRoutes");
-const equipmentRoutes = require("./src/routes/equipmentRoutes");
-const roomRoutes = require("./src/routes/roomRoutes");
-const borrowRoutes = require("./src/routes/borrowRoutes");
-const tutorialRoutes = require("./src/routes/tutorialRoutes");
-const categoryRoutes = require("./src/routes/categoryRoutes");
+// Routes
+app.use("/api/auth", require("./src/routes/authRoutes"));
+app.use("/api/categories", require("./src/routes/categoryRoutes"));
+app.use("/api/equipment", require("./src/routes/equipmentRoutes"));
+app.use("/api/buildings", require("./src/routes/buildingRoutes"));
+app.use("/api/rooms", require("./src/routes/roomRoutes"));
+app.use("/api/borrowings", require("./src/routes/borrowingRoutes"));
+app.use("/api/room-borrowings", require("./src/routes/roomBorrowingRoutes"));
 
-// 🔹 Gunakan routes
-app.use("/api/auth", authRoutes);
-app.use("/api/equipment", equipmentRoutes);
-app.use("/api/rooms", roomRoutes);
-app.use("/api/borrow", borrowRoutes);
-app.use("/api/tutorials", tutorialRoutes);
-app.use("/api/categories", categoryRoutes);
-
-// 🔹 Route default
+// Test endpoint
 app.get("/", (req, res) => {
-  res.send("🚀 Backend bepemlat berjalan dengan baik!");
+  res.send("Backend bepemlat jalan 🚀");
 });
 
-// 🔹 Route tes koneksi database
-app.get("/db-test", async (req, res) => {
+// ✅ Error handler global
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: "Internal Server Error" });
+});
+
+// Run server dan connect ke database
+(async () => {
   try {
-    const result = await pool.query("SELECT NOW()");
-    res.json({
-      message: "Koneksi database berhasil 🎉",
-      server_time: result.rows[0].now,
-    });
+    await sequelize.authenticate();
+    console.log("✅ Database connected");
+
+    await sequelize.sync({ alter: true });
+    console.log("✅ Database synced");
+
+    app.listen(PORT, () =>
+      console.log(`🚀 Server running at http://localhost:${PORT}`)
+    );
   } catch (err) {
-    console.error("DB error:", err);
-    res.status(500).json({ error: "Gagal koneksi database" });
+    console.error("❌ Server error:", err);
   }
-});
-
-// 🔹 Fallback 404 JSON
-app.use((req, res) => {
-  res.status(404).json({ error: "Endpoint tidak ditemukan" });
-});
-
-// 🔹 Jalankan server
-app.listen(PORT, () => {
-  console.log(`✅ Backend running at http://localhost:${PORT}`);
-});
+})();

@@ -1,98 +1,108 @@
-const pool = require("../config/db");
+// src/controller/categoryController.js
+const { Category, Equipment } = require("../models");
 const path = require("path");
+const fs = require("fs");
 
-// ✅ GET semua kategori
-exports.getAllCategories = async (req, res) => {
+const uploadsDir = path.join(process.cwd(), "uploads");
+
+exports.getAllCategories = async (req, res, next) => {
   try {
-    const result = await pool.query("SELECT * FROM categories ORDER BY id ASC");
-    res.json(result.rows);
+    const categories = await Category.findAll({ order: [["id", "ASC"]] });
+    return res.json({ data: categories });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return next(err);
   }
 };
 
-// ✅ GET all equipment (optional filter by category_id)
-exports.getAllEquipment = async (req, res) => {
-  const { category_id } = req.query; // ambil parameter dari URL
+exports.getCategoryById = async (req, res, next) => {
   try {
-    let result;
-    if (category_id) {
-      // Jika ada kategori, filter berdasarkan category_id
-      result = await pool.query(
-        "SELECT * FROM equipment WHERE category_id = $1 ORDER BY id ASC",
-        [category_id]
-      );
-    } else {
-      // Jika tidak ada kategori, tampilkan semua alat
-      result = await pool.query("SELECT * FROM equipment ORDER BY id ASC");
+    const category = await Category.findByPk(req.params.id);
+    if (!category) return res.status(404).json({ message: "Category not found" });
+    return res.json({ data: category });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+exports.createCategory = async (req, res, next) => {
+  try {
+    const { name } = req.body;
+    if (!name || name.trim() === "") {
+      return res.status(400).json({ error: "Nama kategori wajib diisi" });
     }
 
-    res.json(result.rows);
+    const existing = await Category.findOne({ where: { name } });
+    if (existing) return res.status(400).json({ error: "Kategori dengan nama ini sudah ada" });
+
+    const image = req.file ? `/uploads/${req.file.filename}` : null;
+    const category = await Category.create({ name, image });
+
+    return res.status(201).json({ data: category });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return next(err);
   }
 };
 
-// ✅ GET kategori berdasarkan ID
-exports.getCategoryById = async (req, res) => {
-  const { id } = req.params;
+exports.updateCategory = async (req, res, next) => {
   try {
-    const result = await pool.query("SELECT * FROM categories WHERE id = $1", [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "Category not found" });
+    const { name } = req.body;
+    const category = await Category.findByPk(req.params.id);
+    if (!category) return res.status(404).json({ message: "Category not found" });
+
+    if (name && name !== category.name) {
+      const dupe = await Category.findOne({ where: { name } });
+      if (dupe) return res.status(400).json({ error: "Kategori dengan nama ini sudah ada" });
     }
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
 
-// ✅ CREATE kategori baru
-exports.createCategory = async (req, res) => {
-  const { name } = req.body;
-  const imagePath = req.file ? `/uploads/${req.file.filename}` : null;
-
-  try {
-    const result = await pool.query(
-      "INSERT INTO categories (name, image) VALUES ($1, $2) RETURNING *",
-      [name, imagePath]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-// ✅ UPDATE kategori
-exports.updateCategory = async (req, res) => {
-  const { id } = req.params;
-  const { name } = req.body;
-  const imagePath = req.file ? `/uploads/${req.file.filename}` : req.body.image || null;
-
-  try {
-    const result = await pool.query(
-      "UPDATE categories SET name=$1, image=$2 WHERE id=$3 RETURNING *",
-      [name, imagePath, id]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "Category not found" });
+    let image = category.image;
+    if (req.file) {
+      if (category.image) {
+        const basename = path.basename(category.image);
+        const oldPath = path.join(uploadsDir, basename);
+        if (fs.existsSync(oldPath)) {
+          try {
+            fs.unlinkSync(oldPath);
+          } catch (e) {
+            console.error("Gagal hapus gambar kategori:", e.message);
+          }
+        }
+      }
+      image = `/uploads/${req.file.filename}`;
+    } else if (req.body.image === null) {
+      // mendukung penghapusan gambar via payload eksplisit
+      image = null;
     }
-    res.json(result.rows[0]);
+
+    await category.update({ name: name ?? category.name, image });
+    return res.json({ data: category });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return next(err);
   }
 };
 
-// ✅ DELETE kategori
-exports.deleteCategory = async (req, res) => {
-  const { id } = req.params;
+exports.deleteCategory = async (req, res, next) => {
   try {
-    const result = await pool.query("DELETE FROM categories WHERE id=$1 RETURNING *", [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "Category not found" });
+    const category = await Category.findByPk(req.params.id);
+    if (!category) return res.status(404).json({ message: "Category not found" });
+
+    const used = await Equipment.findOne({ where: { categoryId: category.id } });
+    if (used) return res.status(400).json({ error: "Kategori ini masih digunakan oleh alat" });
+
+    if (category.image) {
+      const basename = path.basename(category.image);
+      const imgPath = path.join(uploadsDir, basename);
+      if (fs.existsSync(imgPath)) {
+        try {
+          fs.unlinkSync(imgPath);
+        } catch (e) {
+          console.error("Gagal hapus gambar kategori:", e.message);
+        }
+      }
     }
-    res.json({ message: "Category deleted successfully" });
+
+    await category.destroy();
+    return res.json({ message: "Category deleted successfully" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return next(err);
   }
 };

@@ -4,127 +4,161 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function RegisterPage() {
-  const [role, setRole] = useState("mahasiswa");
-  const [name, setName] = useState("");
-  const [nim, setNim] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const router = useRouter();
+  const [form, setForm] = useState({
+    name: "",
+    nim: "",
+    email: "",
+    prodi: "",
+    angkatan: "",
+    password: "",
+    role: "mahasiswa",
+  });
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const handleRegister = async () => {
-    // Validasi input
-    if (role === "admin" && (!name || !email || !password)) {
-      alert("Nama, email, dan password wajib diisi untuk admin!");
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+
+    // Validasi sesuai role
+    if (form.role === "mahasiswa" && (!form.name || !form.nim || !form.password)) {
+      setError("Nama, NIM, dan Password wajib diisi untuk mahasiswa");
       return;
     }
-    if (role === "mahasiswa" && (!nim || !password)) {
-      alert("NIM dan password wajib diisi untuk mahasiswa!");
+    if (form.role === "admin" && (!form.name || !form.email || !form.password)) {
+      setError("Nama, Email, dan Password wajib diisi untuk admin");
       return;
     }
 
     try {
-      const body =
-        role === "admin"
-          ? { role, name, email, password }
-          : { role, nim, password };
-
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/register`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        }
-      );
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
 
       const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Registrasi gagal");
 
-      if (res.ok) {
-        alert("Registrasi berhasil! Silakan login.");
-        router.push("/login");
-      } else {
-        alert(data.message || "Registrasi gagal!");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Terjadi kesalahan server!");
+      setSuccess("Registrasi berhasil! Silakan login.");
+      setForm({
+        name: "",
+        nim: "",
+        email: "",
+        prodi: "",
+        angkatan: "",
+        password: "",
+        role: "mahasiswa",
+      });
+    } catch (err: any) {
+      setError(err.message);
     }
   };
 
   return (
-    <div className="bg-gray-100 w-full min-h-screen flex items-center justify-center">
-      <div className="bg-white rounded-3xl shadow-lg p-10 w-[400px] flex flex-col gap-4">
-        <h1 className="text-2xl font-bold text-center text-gray-700 mb-4">
-          Registrasi Akun
-        </h1>
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white shadow-lg rounded-xl p-8 w-full max-w-md space-y-4"
+      >
+        <h1 className="text-2xl font-bold text-[#299d94] mb-4">Registrasi</h1>
 
-        {/* Pilihan Role */}
+        <input
+          type="text"
+          name="name"
+          placeholder="Nama Lengkap"
+          value={form.name}
+          onChange={handleChange}
+          className="w-full border p-2 rounded text-black"
+          required
+        />
+
+        <input
+          type="text"
+          name="nim"
+          placeholder="NIM"
+          value={form.nim}
+          onChange={handleChange}
+          className="w-full border p-2 rounded text-black"
+          required={form.role === "mahasiswa"}
+        />
+
+        <input
+          type="email"
+          name="email"
+          placeholder="Email"
+          value={form.email}
+          onChange={handleChange}
+          className="w-full border p-2 rounded text-black"
+          required={form.role === "admin"}
+        />
+
+        <input
+          type="text"
+          name="prodi"
+          placeholder="Program Studi"
+          value={form.prodi}
+          onChange={handleChange}
+          className="w-full border p-2 rounded text-black"
+        />
+
+        <input
+          type="text"
+          name="angkatan"
+          placeholder="Angkatan"
+          value={form.angkatan}
+          onChange={handleChange}
+          className="w-full border p-2 rounded text-black"
+        />
+
+        <input
+          type="password"
+          name="password"
+          placeholder="Password"
+          value={form.password}
+          onChange={handleChange}
+          className="w-full border p-2 rounded text-black"
+          required
+        />
+
         <select
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
+          name="role"
+          value={form.role}
+          onChange={handleChange}
+          className="w-full border p-2 rounded text-black"
         >
           <option value="mahasiswa">Mahasiswa</option>
           <option value="admin">Admin</option>
         </select>
 
-        {/* Input untuk Admin */}
-        {role === "admin" && (
-          <>
-            <input
-              type="text"
-              placeholder="Nama Lengkap"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
-            />
-            <input
-              type="email"
-              placeholder="Email Aktif"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
-            />
-          </>
-        )}
+        {error && <p className="text-red-600 text-sm">{error}</p>}
 
-        {/* Input untuk Mahasiswa */}
-        {role === "mahasiswa" && (
-          <input
-            type="text"
-            placeholder="NIM"
-            value={nim}
-            onChange={(e) => setNim(e.target.value)}
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
-          />
-        )}
-
-        {/* Password */}
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-400 outline-none"
-        />
-
-        <button
-          onClick={handleRegister}
-          className="bg-[#299d94] hover:bg-[#21877f] text-white font-bold py-2 rounded-lg transition"
-        >
-          Daftar
-        </button>
-
-        <p className="text-center text-sm text-gray-500 mt-2">
-          Sudah punya akun?{" "}
-          <span
-            className="text-[#299d94] font-semibold cursor-pointer hover:underline"
-            onClick={() => router.push("/login")}
+        {success ? (
+          <div className="space-y-2">
+            <p className="text-green-600 text-sm">{success}</p>
+            <button
+              type="button"
+              onClick={() => router.push("/login")}
+              className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+            >
+              Login
+            </button>
+          </div>
+        ) : (
+          <button
+            type="submit"
+            className="w-full bg-[#299d94] text-white py-2 rounded hover:bg-[#238a83]"
           >
-            Login di sini
-          </span>
-        </p>
-      </div>
+            Register
+          </button>
+        )}
+      </form>
     </div>
   );
 }

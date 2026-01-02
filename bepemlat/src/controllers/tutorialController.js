@@ -1,17 +1,17 @@
 const pool = require("../config/db");
 
 // GET semua tutorial
-exports.getTutorials = async (req, res) => {
+exports.getTutorials = async (req, res, next) => {
   try {
     const result = await pool.query("SELECT * FROM tutorials ORDER BY created_at DESC");
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err); // ✅ kirim ke errorHandler
   }
 };
 
 // CREATE tutorial baru
-exports.createTutorial = async (req, res) => {
+exports.createTutorial = async (req, res, next) => {
   const { title, description, youtube_url } = req.body;
   try {
     const result = await pool.query(
@@ -20,12 +20,13 @@ exports.createTutorial = async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    err.status = 400; // ✅ bisa kasih status khusus
+    next(err);
   }
 };
 
 // UPDATE tutorial
-exports.updateTutorial = async (req, res) => {
+exports.updateTutorial = async (req, res, next) => {
   const { id } = req.params;
   const { title, description, youtube_url } = req.body;
   try {
@@ -33,21 +34,30 @@ exports.updateTutorial = async (req, res) => {
       "UPDATE tutorials SET title=$1, description=$2, youtube_url=$3, updated_at=NOW() WHERE id=$4 RETURNING *",
       [title, description, youtube_url, id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ message: "Tutorial not found" });
+    if (result.rows.length === 0) {
+      const error = new Error("Tutorial not found");
+      error.status = 404;
+      return next(error);
+    }
     res.json(result.rows[0]);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    err.status = 400;
+    next(err);
   }
 };
 
 // DELETE tutorial
-exports.deleteTutorial = async (req, res) => {
+exports.deleteTutorial = async (req, res, next) => {
   const { id } = req.params;
   try {
     const result = await pool.query("DELETE FROM tutorials WHERE id = $1 RETURNING *", [id]);
-    if (result.rowCount === 0) return res.status(404).json({ message: "Tutorial not found" });
+    if (result.rowCount === 0) {
+      const error = new Error("Tutorial not found");
+      error.status = 404;
+      return next(error);
+    }
     res.json({ message: "Tutorial deleted" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };

@@ -1,131 +1,143 @@
-const pool = require("../config/db");
+const { Equipment, Category } = require("../models");
 const path = require("path");
 const fs = require("fs");
 
-// GET all equipment
-exports.getAllEquipment = async (req, res) => {
+const uploadsDir = path.join(process.cwd(), "uploads");
+
+// GET semua alat
+exports.getAllEquipment = async (req, res, next) => {
   try {
-    const result = await pool.query("SELECT * FROM equipment ORDER BY id ASC");
-    res.json(result.rows);
+    const { category_id } = req.query;
+    const where = category_id ? { categoryId: Number(category_id) } : {};
+
+    const equipment = await Equipment.findAll({
+      where,
+      include: [{ model: Category, as: "Category" }],
+      order: [["id", "ASC"]],
+    });
+
+    return res.json({ data: equipment });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return next(err);
   }
 };
 
-// GET equipment by id
-exports.getEquipmentById = async (req, res) => {
-  const { id } = req.params;
+
+// GET alat by id
+exports.getEquipmentById = async (req, res, next) => {
   try {
-    const result = await pool.query("SELECT * FROM equipment WHERE id = $1", [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "Equipment not found" });
-    }
-    res.json(result.rows[0]);
+    const alat = await Equipment.findByPk(req.params.id, {
+      include: [{ model: Category, as: "Category" }],
+    });
+    if (!alat) return res.status(404).json({ message: "Equipment not found" });
+    return res.json({ data: alat });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return next(err);
   }
 };
 
-// CREATE new equipment (otomatis tambahkan kategori jika belum ada)
-exports.createEquipment = async (req, res) => {
-  const { name, category, description, stock, available } = req.body;
-  const imagePath = req.file?.filename ? `/uploads/${req.file.filename}` : null;
-
+// ✅ CREATE alat
+exports.createEquipment = async (req, res, next) => {
   try {
-    // 🔹 1. Cek apakah kategori sudah ada di tabel categories
-    let categoryId;
-    const categoryResult = await pool.query(
-      "SELECT id FROM categories WHERE name = $1",
-      [category]
-    );
+    const { name, categoryId, description, stock, available } = req.body;
+    const image = req.file ? `/uploads/${req.file.filename}` : null;
 
-    if (categoryResult.rows.length === 0) {
-      // 🔹 2. Jika belum ada, buat kategori baru (pakai gambar default)
-      const defaultImage = "/uploads/default-category.jpg";
-      const newCategory = await pool.query(
-        "INSERT INTO categories (name, image) VALUES ($1, $2) RETURNING id",
-        [category, defaultImage]
-      );
-      categoryId = newCategory.rows[0].id;
-    } else {
-      categoryId = categoryResult.rows[0].id;
+    if (!name || !categoryId) {
+      return res.status(400).json({ error: "Nama dan kategori wajib diisi" });
     }
 
-    // 🔹 3. Simpan alat baru ke tabel equipment
-    const result = await pool.query(
-      `INSERT INTO equipment 
-        (name, category, description, stock, available, image, category_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
-      [
-        name,
-        category,
-        description,
-        parseInt(stock, 10),
-        available === "true",
-        imagePath,
-        categoryId,
-      ]
-    );
+    const category = await Category.findByPk(Number(categoryId));
+    if (!category) {
+      return res.status(400).json({ error: "Kategori tidak ditemukan" });
+    }
 
-    res.status(201).json(result.rows[0]);
+    const parsedStock = parseInt(stock, 10);
+    if (Number.isNaN(parsedStock) || parsedStock < 0) {
+      return res.status(400).json({ error: "Stok tidak valid" });
+    }
+
+    const alat = await Equipment.create({
+      name,
+      description,
+      stock: parsedStock,
+      available: available === "true", // ✅ FIX DI SINI
+      image,
+      categoryId: Number(categoryId),
+    });
+
+    return res.status(201).json({ data: alat });
   } catch (err) {
-    console.error("❌ Gagal menambahkan alat:", err.message);
-    res.status(500).json({ error: err.message });
+    console.error("CREATE EQUIPMENT ERROR:", err);
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
-// UPDATE equipment
-exports.updateEquipment = async (req, res) => {
-  const { id } = req.params;
-  const { name, category, description, stock, available } = req.body;
-  const imagePath =
-    req.file?.filename ? `/uploads/${req.file.filename}` : req.body.image || null;
 
+
+// UPDATE alat
+exports.updateEquipment = async (req, res, next) => {
   try {
-    const result = await pool.query(
-      "UPDATE equipment SET name=$1, category=$2, description=$3, stock=$4, available=$5, image=$6 WHERE id=$7 RETURNING *",
-      [
-        name,
-        category,
-        description,
-        parseInt(stock, 10),
-        available === "true",
-        imagePath,
-        id,
-      ]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "Equipment not found" });
+    const { name, categoryId, description, stock, available } = req.body;
+    const alat = await Equipment.findByPk(req.params.id);
+    if (!alat) return res.status(404).json({ message: "Equipment not found" });
+
+    const parsedStock = parseInt(stock, 10);
+    if (!Number.isNaN(parsedStock) && parsedStock < 0) {
+      return res.status(400).json({ error: "Stok tidak valid" });
     }
-    res.json(result.rows[0]);
+
+    let image = alat.image;
+    if (req.file) {
+      // hapus gambar lama
+      if (alat.image) {
+        const basename = path.basename(alat.image);
+        const oldPath = path.join(uploadsDir, basename);
+        if (fs.existsSync(oldPath)) {
+          try { fs.unlinkSync(oldPath); } catch (e) { console.error("Gagal hapus gambar:", e.message); }
+        }
+      }
+      image = `/uploads/${req.file.filename}`;
+    } else if (req.body.image === null) {
+      image = null;
+    } else if (req.body.image) {
+      image = req.body.image;
+    }
+
+    const nextStock = Number.isNaN(parsedStock) ? alat.stock : parsedStock;
+    await alat.update({
+      name: name ?? alat.name,
+      description: description ?? alat.description,
+      stock: nextStock,
+      available: available === "true", // ✅ gunakan nilai dari frontend
+      image,
+      categoryId: categoryId ?? alat.categoryId,
+    });
+
+    return res.json({ data: alat });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return next(err);
   }
 };
 
-// DELETE equipment
-exports.deleteEquipment = async (req, res) => {
-  const { id } = req.params;
+// DELETE alat
+exports.deleteEquipment = async (req, res, next) => {
   try {
-    const result = await pool.query("DELETE FROM equipment WHERE id=$1 RETURNING *", [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "Equipment not found" });
-    }
+    const alat = await Equipment.findByPk(req.params.id);
+    if (!alat) return res.status(404).json({ message: "Equipment not found" });
 
-    // Hapus file gambar jika ada
-    const imagePath = result.rows[0]?.image;
-    if (imagePath) {
-      const fullPath = path.join(__dirname, "..", imagePath);
+    const image = alat.image;
+    await alat.destroy();
+
+    if (image) {
+      const basename = path.basename(image);
+      const fullPath = path.join(uploadsDir, basename);
       if (fs.existsSync(fullPath)) {
-        fs.unlink(fullPath, (err) => {
-          if (err) console.error("Gagal hapus gambar:", err.message);
-        });
+        try { fs.unlinkSync(fullPath); } catch (e) { console.error("Gagal hapus gambar:", e.message); }
       }
     }
 
-    res.json({ message: "Equipment deleted successfully" });
+    return res.json({ message: "Equipment deleted successfully" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return next(err);
   }
 };

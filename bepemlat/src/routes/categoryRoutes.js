@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const categoryController = require("../controllers/categoryController");
-const upload = require("../middlewares/upload");
+const upload = require("../middlewares/uploadMiddleware");
 
 // ✅ GET semua kategori
 router.get("/", categoryController.getAllCategories);

@@ -1,83 +1,104 @@
-// controllers/roomController.js
-const pool = require("../config/db");
+const { Room, Building } = require("../models");
+const path = require("path");
+const fs = require("fs");
 
-// GET semua ruangan
-exports.getAllRooms = async (req, res) => {
+const uploadsDir = path.join(process.cwd(), "uploads");
+
+exports.getAllRooms = async (req, res, next) => {
   try {
-    const result = await pool.query("SELECT * FROM rooms ORDER BY id ASC");
-    res.json(result.rows);
+    const rooms = await Room.findAll({
+      include: [{ model: Building, as: "building" }],
+      order: [["id", "ASC"]],
+    });
+    res.json({ data: rooms });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    next(err);
   }
 };
 
-// GET ruangan by ID
-exports.getRoomById = async (req, res) => {
-  const { id } = req.params;
+exports.getRoomById = async (req, res, next) => {
   try {
-    const result = await pool.query("SELECT * FROM rooms WHERE id = $1", [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "Room not found" });
-    }
-    res.json(result.rows[0]);
+    const room = await Room.findByPk(req.params.id, {
+      include: [{ model: Building, as: "building" }],
+    });
+    if (!room) return res.status(404).json({ message: "Room not found" });
+    res.json({ data: room });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    next(err);
   }
 };
 
-// CREATE ruangan
-exports.createRoom = async (req, res) => {
-  const { name, location, capacity, available } = req.body;
+exports.createRoom = async (req, res, next) => {
   try {
-    const result = await pool.query(
-      `INSERT INTO rooms (name, location, capacity, available)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [name, location, capacity, available ?? true]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-// UPDATE ruangan
-exports.updateRoom = async (req, res) => {
-  const { id } = req.params;
-  const { name, location, capacity, available } = req.body;
-  try {
-    const result = await pool.query(
-      `UPDATE rooms
-       SET name=$1, location=$2, capacity=$3, available=$4
-       WHERE id=$5
-       RETURNING *`,
-      [name, location, capacity, available, id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "Room not found" });
+    const { name, buildingId, capacity, description, available } = req.body;
+    if (!name || !buildingId) {
+      return res.status(400).json({ error: "Nama ruangan dan gedung wajib diisi" });
     }
 
-    res.json(result.rows[0]);
+    const building = await Building.findByPk(buildingId);
+    if (!building) return res.status(400).json({ error: "Gedung tidak ditemukan" });
+
+    const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+    const room = await Room.create({
+      name,
+      buildingId,
+      capacity: capacity ? Number(capacity) : null,
+      description,
+      available: available === true || available === "true",
+      image,
+    });
+
+    const result = await Room.findByPk(room.id, { include: [{ model: Building, as: "building" }] });
+    res.status(201).json({ data: result });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    next(err);
   }
 };
 
-// DELETE ruangan
-exports.deleteRoom = async (req, res) => {
-  const { id } = req.params;
+exports.updateRoom = async (req, res, next) => {
   try {
-    const result = await pool.query(
-      "DELETE FROM rooms WHERE id=$1 RETURNING *",
-      [id]
-    );
+    const room = await Room.findByPk(req.params.id);
+    if (!room) return res.status(404).json({ message: "Room not found" });
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "Room not found" });
+    const { name, buildingId, capacity, description, available } = req.body;
+    let image = room.image;
+
+    if (req.file) {
+      if (room.image) {
+        const basename = path.basename(room.image);
+        const oldPath = path.join(uploadsDir, basename);
+        if (fs.existsSync(oldPath)) {
+          try { fs.unlinkSync(oldPath); } catch (e) { console.error("Gagal hapus gambar:", e.message); }
+        }
+      }
+      image = `/uploads/${req.file.filename}`;
     }
 
+    await room.update({
+      name,
+      buildingId,
+      capacity: capacity ? Number(capacity) : null,
+      description,
+      available: available === true || available === "true",
+      image,
+    });
+
+    const result = await Room.findByPk(room.id, { include: [{ model: Building, as: "building" }] });
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deleteRoom = async (req, res, next) => {
+  try {
+    const room = await Room.findByPk(req.params.id);
+    if (!room) return res.status(404).json({ message: "Room not found" });
+
+    await room.destroy();
     res.json({ message: "Room deleted successfully" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    next(err);
   }
 };

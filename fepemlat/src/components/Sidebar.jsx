@@ -18,10 +18,16 @@ export default function Sidebar() {
   ];
 
   return (
-    <div className="w-[272px] h-[calc(100vh-56px)] bg-[#299d94] flex flex-col items-center shadow-lg fixed top-14 left-0 z-20">
-      {/* Bagian Logo */}
-      <div className="w-full h-[180px] bg-white flex items-center justify-center shadow-md">
-        <Image src={poltek2} alt="Logo Kampus" width={130} height={120} />
+   <div className="w-[272px] h-[calc(100vh-56px)] bg-[#299d94] flex flex-col items-center shadow-lg fixed top-14 left-0 z-20">
+      {/* Bagian Logo persegi panjang dengan rounded kanan */}
+      <div className="w-[230px] h-30 bg-white rounded-b-full flex items-center justify-start pl-18 mt-2 shadow-md">
+        <Image
+          src={poltek2}
+          alt="Logo Kampus"
+          width={80}
+          height={50}
+          className="object-contain"
+        />
       </div>
 
       {/* Navigasi */}

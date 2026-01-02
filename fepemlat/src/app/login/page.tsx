@@ -2,29 +2,30 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
-  const [role, setRole] = useState("mahasiswa");
+  const router = useRouter();
+  const { login } = useAuth();
+  const [role, setRole] = useState<"mahasiswa" | "admin">("mahasiswa");
   const [nim, setNim] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     if (role === "mahasiswa" && (!nim || !password)) {
-      alert("NIM dan Password wajib diisi untuk Mahasiswa!");
+      alert("NIM dan Password wajib diisi!");
       return;
     }
     if (role === "admin" && (!email || !password)) {
-      alert("Email dan Password wajib diisi untuk Admin!");
+      alert("Email dan Password wajib diisi!");
       return;
     }
 
+    setLoading(true);
     try {
-      const body =
-        role === "admin"
-          ? { role, email, password }
-          : { role, nim, password };
+      const body = role === "admin" ? { role, email, password } : { role, nim, password };
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
         method: "POST",
@@ -33,92 +34,89 @@ export default function LoginPage() {
       });
 
       const data = await res.json();
-
-      if (res.ok && data.token) {
-        // Simpan token dan role
-       localStorage.setItem("token", data.token);
-       localStorage.setItem("user", JSON.stringify(data.user)); // simpan seluruh user object
-
-        // Arahkan sesuai role
-        if (data.user.role === "admin") {
-          router.push("/dashboard/admin");
-        } else {
-          router.push("/dashboard/mahasiswa");
-        }
-      } else {
-        alert(data.message || "Login gagal! Cek kembali data Anda.");
+      if (!res.ok || !data.data?.token) {
+        alert(data.message || "Login gagal");
+        setLoading(false);
+        return;
       }
+
+      const user = data.data.user;
+      const token = data.data.token;
+
+      // SIMPAN di AuthContext & localStorage
+      login(user, token);
+
+      // Redirect sesuai role
+      if (user.role === "admin") router.replace("/dashboard/admin");
+      else router.replace("/dashboard/mahasiswa");
     } catch (err) {
       console.error(err);
-      alert("Terjadi kesalahan server!");
+      alert("Terjadi kesalahan server");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="bg-white w-full min-h-screen relative flex items-center justify-center">
+    <div className="bg-white w-full min-h-screen flex items-center justify-center relative">
       <img
-        className="absolute top-0 left-0 w-full h-full object-cover"
-        alt="Background"
         src="/images/bg1.png"
+        alt="Background"
+        className="absolute inset-0 w-full h-full object-cover"
       />
 
-      <div className="relative w-[617px] bg-[#299d94] rounded-[70px] shadow-xl p-10 flex flex-col items-center justify-center text-center">
+      <div className="relative w-[617px] bg-[#299d94] rounded-[70px] shadow-xl p-10 flex flex-col items-center text-center">
         <h1 className="text-white font-bold text-3xl mb-4">Login Akun</h1>
-        <p className="text-white text-lg mb-6">
-          Pilih Role Anda untuk Login
-        </p>
+        <p className="text-white text-lg mb-6">Pilih Role Anda untuk Login</p>
 
-        {/* Pilihan Role */}
         <select
           value={role}
           onChange={(e) => {
-            setRole(e.target.value);
-            setEmail("");
+            setRole(e.target.value as "mahasiswa" | "admin");
             setNim("");
+            setEmail("");
             setPassword("");
           }}
-          className="w-[487px] h-10 mb-4 px-4 rounded-lg border border-gray-300 text-gray-700 focus:ring-2 focus:ring-teal-400 outline-none"
+          className="w-[487px] h-10 mb-4 px-4 rounded-lg border border-gray-300 text-gray-700"
         >
           <option value="mahasiswa">Mahasiswa</option>
           <option value="admin">Admin</option>
         </select>
 
-        {/* Input Khusus Mahasiswa */}
         {role === "mahasiswa" && (
           <input
             type="text"
             placeholder="Masukkan NIM"
             value={nim}
             onChange={(e) => setNim(e.target.value)}
-            className="w-[487px] h-10 px-4 rounded-lg border border-gray-300 mb-4 focus:ring-2 focus:ring-teal-400 outline-none"
+            className="w-[487px] h-10 px-4 rounded-lg border border-gray-300 mb-4"
           />
         )}
 
-        {/* Input Khusus Admin */}
         {role === "admin" && (
           <input
             type="email"
             placeholder="Masukkan Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-[487px] h-10 px-4 rounded-lg border border-gray-300 mb-4 focus:ring-2 focus:ring-teal-400 outline-none"
+            className="w-[487px] h-10 px-4 rounded-lg border border-gray-300 mb-4"
           />
         )}
 
-        {/* Password */}
         <input
           type="password"
           placeholder="Masukkan Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-[487px] h-10 px-4 rounded-lg border border-gray-300 mb-6 focus:ring-2 focus:ring-teal-400 outline-none"
+          className="w-[487px] h-10 px-4 rounded-lg border border-gray-300 mb-6"
         />
 
         <button
           onClick={handleLogin}
-          className="w-[194px] h-10 bg-white rounded-[20px] font-bold text-[#299d94] hover:bg-gray-200 transition"
+          disabled={loading}
+          className="w-[194px] h-10 bg-white rounded-[20px] font-bold text-[#299d94] hover:bg-gray-200 transition disabled:opacity-50"
         >
-          Log in
+          {loading ? "Memproses..." : "Log in"}
         </button>
 
         <p className="text-white text-sm mt-4">

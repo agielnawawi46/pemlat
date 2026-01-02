@@ -1,13 +1,28 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function AddEquipmentForm({ onSuccess, onCancel }: any) {
   const [nama, setNama] = useState("");
   const [kategori, setKategori] = useState("");
+  const [categories, setCategories] = useState<any[]>([]);
   const [deskripsi, setDeskripsi] = useState("");
   const [stok, setStok] = useState("");
   const [gambar, setGambar] = useState<File | null>(null);
+  const [tersedia, setTersedia] = useState(false); // ✅ tambahkan state untuk checkbox
   const [error, setError] = useState("");
+
+  const api = "http://localhost:5000/api";
+
+  // Ambil kategori dari API saat komponen mount
+  useEffect(() => {
+    fetch(`${api}/categories`)
+      .then((res) => res.json())
+      .then((json) => {
+        const data = json.data ?? json; // ✅ ambil json.data kalau ada
+        setCategories(Array.isArray(data) ? data : []);
+      })
+      .catch(console.error);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -15,14 +30,14 @@ export default function AddEquipmentForm({ onSuccess, onCancel }: any) {
 
     const form = new FormData();
     form.append("name", nama);
-    form.append("category", kategori);
+    form.append("categoryId", kategori); // kirim ID kategori
     form.append("description", deskripsi);
     form.append("stock", stok);
-    form.append("available", "true");
+    form.append("available", tersedia.toString()); // ✅ kirim nilai checkbox
     if (gambar) form.append("image", gambar);
 
     try {
-      const res = await fetch("http://localhost:3001/api/equipment", {
+      const res = await fetch(`${api}/equipment`, {
         method: "POST",
         body: form,
       });
@@ -31,6 +46,13 @@ export default function AddEquipmentForm({ onSuccess, onCancel }: any) {
       if (!res.ok) throw new Error(result.error || "Gagal menyimpan data");
 
       onSuccess();
+      // reset form
+      setNama("");
+      setKategori("");
+      setDeskripsi("");
+      setStok("");
+      setGambar(null);
+      setTersedia(false); // ✅ reset checkbox
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Terjadi kesalahan");
@@ -55,14 +77,22 @@ export default function AddEquipmentForm({ onSuccess, onCancel }: any) {
             className="w-full border p-2 rounded"
             required
           />
-          <input
-            type="text"
-            placeholder="Kategori"
+
+          {/* Dropdown kategori */}
+          <select
             value={kategori}
             onChange={(e) => setKategori(e.target.value)}
             className="w-full border p-2 rounded"
             required
-          />
+          >
+            <option value="">Pilih kategori</option>
+            {categories.map((c: any) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+
           <textarea
             placeholder="Deskripsi"
             value={deskripsi}
@@ -70,6 +100,7 @@ export default function AddEquipmentForm({ onSuccess, onCancel }: any) {
             className="w-full border p-2 rounded"
             required
           />
+
           <input
             type="number"
             placeholder="Stok"
@@ -78,6 +109,7 @@ export default function AddEquipmentForm({ onSuccess, onCancel }: any) {
             className="w-full border p-2 rounded"
             required
           />
+
           <input
             type="file"
             accept="image/*"
@@ -87,6 +119,7 @@ export default function AddEquipmentForm({ onSuccess, onCancel }: any) {
             }}
             className="w-full border p-2 rounded"
           />
+
           {gambar && (
             <img
               src={URL.createObjectURL(gambar)}
@@ -94,6 +127,16 @@ export default function AddEquipmentForm({ onSuccess, onCancel }: any) {
               className="w-full h-40 object-contain rounded border"
             />
           )}
+
+          {/* ✅ Checkbox tersedia */}
+          <div className="flex gap-2 items-center">
+            <input
+              type="checkbox"
+              checked={tersedia}
+              onChange={(e) => setTersedia(e.target.checked)}
+            />
+            <label>Tersedia</label>
+          </div>
 
           <div className="flex justify-end gap-2 mt-4">
             <button

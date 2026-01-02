@@ -7,19 +7,16 @@ import Footer from "@/components/Footer";
 export default function KelolaAlat() {
   const [alatList, setAlatList] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
-  const [formData, setFormData] = useState<{
-    nama: string;
-    kategori: string;
-    deskripsi: string;
-    stok: string;
-    gambar: File | string | null;
-    tersedia: boolean;
-  }>({
+  const [editingAlat, setEditingAlat] = useState<any | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [showKategoriForm, setShowKategoriForm] = useState(false);
+
+  const [formData, setFormData] = useState({
     nama: "",
     kategori: "",
     deskripsi: "",
     stok: "",
-    gambar: null,
+    gambar: null as File | string | null,
     tersedia: true,
   });
 
@@ -27,145 +24,116 @@ export default function KelolaAlat() {
   const [kategoriGambar, setKategoriGambar] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [kategoriError, setKategoriError] = useState("");
-  const [editingAlat, setEditingAlat] = useState<any | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [showKategoriForm, setShowKategoriForm] = useState(false);
 
-  const fetchData = async () => {
-    try {
-      const res = await fetch("http://localhost:3001/api/equipment");
-      const data = await res.json();
-      setAlatList(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Gagal memuat data:", error);
-    }
-  };
+  const api = "http://localhost:5000/api";
 
-  const fetchCategories = async () => {
-    try {
-      const res = await fetch("http://localhost:3001/api/categories");
-      const data = await res.json();
-      setCategories(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Gagal memuat kategori:", error);
-    }
-  };
+  const fetchData = async (endpoint: string, setter: any) => {
+  try {
+    const res = await fetch(`${api}/${endpoint}`);
+    const json = await res.json();
+    const data = json.data ?? json; // ambil json.data kalau ada
+    setter(Array.isArray(data) ? data : []);
+  } catch (err) {
+    console.error("Gagal memuat:", endpoint, err);
+  }
+};
 
   useEffect(() => {
-    fetchData();
-    fetchCategories();
+    fetchData("equipment", setAlatList);
+    fetchData("categories", setCategories);
   }, []);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    const { name, value, type, checked, files } = e.target as HTMLInputElement;
-    if (type === "file" && files?.[0]) {
-      setFormData((prev) => ({ ...prev, gambar: files[0] }));
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
-    }
+  const resetForm = () =>
+    setFormData({
+      nama: "",
+      kategori: "",
+      deskripsi: "",
+      stok: "",
+      gambar: null,
+      tersedia: true,
+    });
+
+  const handleChange = (e: any) => {
+    const { name, value, type, checked, files } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : type === "file" ? files[0] : value,
+    }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
     const form = new FormData();
-    form.append("name", formData.nama);
-    form.append("category", formData.kategori);
-    form.append("description", formData.deskripsi);
-    form.append("stock", formData.stok);
-    form.append("available", formData.tersedia.toString());
-    if (formData.gambar instanceof File) {
-      form.append("image", formData.gambar);
-    }
+    Object.entries({
+      name: formData.nama,
+      categoryId: formData.kategori,
+      description: formData.deskripsi,
+      stock: formData.stok,
+      available: formData.tersedia.toString(),
+    }).forEach(([k, v]) => form.append(k, v as string));
+
+    if (formData.gambar instanceof File) form.append("image", formData.gambar);
 
     const method = editingAlat ? "PUT" : "POST";
     const url = editingAlat
-      ? `http://localhost:3001/api/equipment/${editingAlat.id}`
-      : "http://localhost:3001/api/equipment";
+      ? `${api}/equipment/${editingAlat.id}`
+      : `${api}/equipment`;
 
-    try {
-      const res = await fetch(url, { method, body: form });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Gagal menyimpan data");
+    const res = await fetch(url, { method, body: form });
+    const result = await res.json();
 
-      setShowForm(false);
-      setEditingAlat(null);
-      setFormData({
-        nama: "",
-        kategori: "",
-        deskripsi: "",
-        stok: "",
-        gambar: null,
-        tersedia: true,
-      });
-      fetchData();
-    } catch (err) {
-      console.error("Gagal menyimpan:", err);
-    }
+    if (!res.ok) return alert(result.error || "Gagal menyimpan");
+
+    setShowForm(false);
+    setEditingAlat(null);
+    resetForm();
+    fetchData("equipment", setAlatList);
   };
 
   const handleEdit = (alat: any) => {
     setEditingAlat(alat);
     setFormData({
       nama: alat.name,
-      kategori: alat.category,
+      kategori: alat.categoryId,
       deskripsi: alat.description,
-      stok: alat.stock?.toString() || "",
-      gambar: alat.image || null,
+      stok: alat.stock.toString(),
+      gambar: null,
       tersedia: alat.available,
     });
     setShowForm(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Yakin ingin menghapus alat ini?")) return;
-    try {
-      await fetch(`http://localhost:3001/api/equipment/${id}`, { method: "DELETE" });
-      fetchData();
-    } catch (err) {
-      console.error("Gagal menghapus data:", err);
-    }
+  const remove = async (id: number, endpoint: string, refresh: any) => {
+    if (!confirm("Yakin ingin menghapus?")) return;
+    await fetch(`${api}/${endpoint}/${id}`, { method: "DELETE" });
+    refresh();
   };
 
-  const handleDeleteKategori = async (id: number) => {
-    if (!confirm("Yakin ingin menghapus kategori ini?")) return;
-    try {
-      await fetch(`http://localhost:3001/api/categories/${id}`, { method: "DELETE" });
-      fetchCategories();
-    } catch (err) {
-      console.error("Gagal hapus kategori:", err);
-    }
-  };
-
-  const handleSubmitKategori = async (e: React.FormEvent) => {
+  // FIX: kategori langsung refresh setelah ditambahkan
+  const handleSubmitKategori = async (e: any) => {
     e.preventDefault();
     setKategoriError("");
 
-    if (categories.some((cat) => cat.name.toLowerCase() === kategoriBaru.toLowerCase())) {
-      setKategoriError("Kategori dengan nama ini sudah ada.");
-      return;
-    }
+    if (categories.some((c) => c.name.toLowerCase() === kategoriBaru.toLowerCase()))
+      return setKategoriError("Kategori sudah ada");
 
     const form = new FormData();
     form.append("name", kategoriBaru);
-    if (kategoriGambar instanceof File) {
-      form.append("image", kategoriGambar);
-    }
+    if (kategoriGambar) form.append("image", kategoriGambar);
 
     try {
-      const res = await fetch("http://localhost:3001/api/categories", {
-        method: "POST",
-        body: form,
-      });
+      const res = await fetch(`${api}/categories`, { method: "POST", body: form });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Gagal menambahkan kategori");
+      if (!res.ok) return setKategoriError(result.error || "Gagal");
 
+      // refresh kategori langsung
+      await fetchData("categories", setCategories);
+
+      // reset form dan tutup popup
       setKategoriBaru("");
       setKategoriGambar(null);
       setPreviewUrl(null);
       setShowKategoriForm(false);
-      fetchCategories();
     } catch (err: any) {
       setKategoriError(err.message || "Terjadi kesalahan");
     }
@@ -174,275 +142,202 @@ export default function KelolaAlat() {
   return (
     <div className="flex flex-col min-h-screen bg-white">
       <Navbar />
-      <div className="flex flex-1">
-        <main className="flex-1 pt-14 pb-24 px-10 overflow-y-auto">
-          {/* Header */}
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-3xl font-bold text-gray-800">Kelola Alat</h1>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setEditingAlat(null);
-                  setFormData({
-                    nama: "",
-                    kategori: "",
-                    deskripsi: "",
-                    stok: "",
-                    gambar: null,
-                    tersedia: true,
-                  });
-                  setShowForm(true);
-                }}
-                className="bg-[#299d94] text-white px-4 py-2 rounded-lg hover:bg-[#238a83] shadow"
-              >
-                + Tambah Alat
-              </button>
-              <button
-                onClick={() => setShowKategoriForm(true)}
-                className="bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-600 shadow"
-              >
-                + Tambah Kategori
-              </button>
-            </div>
-          </div>
 
-          {/* Tabel alat */}
-          <div className="bg-white rounded-xl shadow p-6 border border-gray-100 overflow-x-auto">
-            <table className="min-w-full text-sm text-gray-700">
-              <thead className="bg-gray-200 text-gray-800">
-                <tr>
-                  <th className="p-3 text-left">No</th>
-                  <th className="p-3 text-left">Nama</th>
-                  <th className="p-3 text-left">Kategori</th>
-                  <th className="p-3 text-left">Stok</th>
-                  <th className="p-3 text-left">Tersedia</th>
-                  <th className="p-3 text-left">Gambar</th>
-                  <th className="p-3 text-left">Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {alatList.map((alat, i) => (
-                  <tr key={alat.id} className="border-t hover:bg-gray-100">
-                    <td className="p-3">{i + 1}</td>
-                    <td className="p-3 font-medium">{alat.name}</td>
-                    <td className="p-3">{alat.category}</td>
-                    <td className="p-3">{alat.stock}</td>
-                    <td className="p-3">
-                      <span
-                        className={`px-2 py-1 rounded text-xs ${
-                          alat.available ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        {alat.available ? "Tersedia" : "Tidak"}
-                      </span>
-                    </td>
-                                        <td className="p-3">
-                      {alat.image && (
-                        <img
-                          src={
-                            alat.image.startsWith("http")
-                              ? alat.image
-                              : `http://localhost:3001${alat.image}`
-                          }
-                          alt={alat.name}
-                          className="w-16 h-16 object-cover rounded-lg border"
-                        />
-                      )}
-                    </td>
-                    <td className="p-3 space-x-2">
-                      <button
-                        onClick={() => handleEdit(alat)}
-                        className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(alat.id)}
-                        className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
-                      >
-                        Hapus
-                      </button>
-                    </td>
-                  </tr>
+      <main className="flex-1 pt-20 pb-24 px-10">
+        <div className="flex justify-between mb-2">
+          <h1 className="text-3xl font-bold text-gray-800">Kelola Alat</h1>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                resetForm();
+                setEditingAlat(null);
+                setShowForm(true);
+              }}
+              className="bg-[#299d94] text-white px-4 py-2 rounded-lg"
+            >
+              + Tambah Alat
+            </button>
+
+            <button
+              onClick={() => setShowKategoriForm(true)}
+              className="bg-indigo-500 text-white px-4 py-2 rounded-lg"
+            >
+              + Tambah Kategori
+            </button>
+          </div>
+        </div>
+
+        <div className="text-gray-700 rounded-xl shadow p-6 border overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-200">
+              <tr>
+                {["No", "Nama", "Kategori", "Stok", "Tersedia", "Gambar", "Aksi"].map((h) => (
+                  <th key={h} className="p-3 text-left">{h}</th>
                 ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Popup Tambah/Edit Alat */}
-          {showForm && (
-            <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-              <div className="bg-white rounded-xl shadow-lg p-6 w-96">
-                <h2 className="text-xl font-semibold mb-4 text-[#299d94]">
-                  {editingAlat ? "Edit Alat" : "Tambah Alat"}
-                </h2>
-                <form onSubmit={handleSubmit} className="space-y-3">
-                  <input
-                    type="text"
-                    name="nama"
-                    placeholder="Nama alat"
-                    value={formData.nama}
-                    onChange={handleChange}
-                    className="w-full border p-2 rounded"
-                    required
-                  />
-                  <select
-                    name="kategori"
-                    value={formData.kategori}
-                    onChange={handleChange}
-                    className="w-full border p-2 rounded"
-                    required
-                  >
-                    <option value="">Pilih kategori</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.name}>
-                        {cat.name}
-                      </option>
-                    ))}
-                  </select>
-                  <textarea
-                    name="deskripsi"
-                    placeholder="Deskripsi"
-                    value={formData.deskripsi}
-                    onChange={handleChange}
-                    className="w-full border p-2 rounded"
-                    required
-                  />
-                  <input
-                    type="number"
-                    name="stok"
-                    placeholder="Stok"
-                    value={formData.stok}
-                    onChange={handleChange}
-                    className="w-full border p-2 rounded"
-                    required
-                  />
-                  <input
-                    type="file"
-                    name="gambar"
-                    accept="image/*"
-                    onChange={handleChange}
-                    className="w-full border p-2 rounded"
-                  />
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      name="tersedia"
-                      checked={formData.tersedia}
-                      onChange={handleChange}
-                    />
-                    <label>Tersedia</label>
-                  </div>
-                  <div className="flex justify-end gap-2 mt-4">
-                    <button
-                      type="button"
-                      onClick={() => setShowForm(false)}
-                      className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
+              </tr>
+            </thead>
+            <tbody>
+              {alatList.map((alat, i) => (
+                <tr key={alat.id} className="border-t hover:bg-gray-100">
+                  <td className="p-3">{i + 1}</td>
+                  <td className="p-3 font-medium">{alat.name}</td>
+                  <td className="p-3">{alat.Category?.name || "-"}</td>
+                  <td className="p-3">{alat.stock}</td>
+                  <td className="p-3">
+                    <span
+                      className={`px-2 py-1 rounded text-xs ${
+                        alat.available
+                          ? "bg-green-100 text-green-700"
+                          : "bg-red-100 text-red-700"
+                      }`}
                     >
-                      Batal
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-3 py-1 bg-[#299d94] text-white rounded hover:bg-[#238a83]"
-                    >
-                      {editingAlat ? "Simpan Perubahan" : "Tambah"}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* Popup Tambah Kategori */}
-          {showKategoriForm && (
-            <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-              <div className="bg-white rounded-xl shadow-lg p-6 w-80 max-h-[90vh] overflow-y-auto">
-                <h2 className="text-xl font-semibold mb-4 text-indigo-600">Tambah Kategori</h2>
-                <form onSubmit={handleSubmitKategori} className="space-y-3">
-                  <input
-                    type="text"
-                    value={kategoriBaru}
-                    onChange={(e) => setKategoriBaru(e.target.value)}
-                    placeholder="Nama kategori"
-                    className="w-full border p-2 rounded"
-                    required
-                  />
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        setKategoriGambar(file);
-                        setPreviewUrl(URL.createObjectURL(file));
-                      }
-                    }}
-                    className="w-full border p-2 rounded"
-                  />
-                  {previewUrl && (
-                    <img
-                      src={previewUrl}
-                      alt="Preview"
-                      className="w-full h-32 object-contain border rounded"
-                    />
-                  )}
-                  {kategoriError && (
-                    <p className="text-red-600 text-sm">{kategoriError}</p>
-                  )}
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowKategoriForm(false);
-                        setKategoriBaru("");
-                        setKategoriGambar(null);
-                        setPreviewUrl(null);
-                        setKategoriError("");
-                      }}
-                      className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
-                    >
-                      Tutup
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-3 py-1 bg-indigo-500 text-white rounded hover:bg-indigo-600"
-                    >
-                      Simpan
-                    </button>
-                  </div>
-                </form>
-
-                <hr className="my-4" />
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">Kategori Tersedia</h3>
-                <ul className="space-y-2 max-h-40 overflow-y-auto">
-                  {categories.map((cat) => (
-                    <li
-                      key={cat.id}
-                      className="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded"
-                    >
-                      <span>{cat.name}</span>
-                      <button
-                        onClick={() => {
-                          if (confirm(`Yakin ingin menghapus kategori "${cat.name}"?`)) {
-                            handleDeleteKategori(cat.id);
-                          }
+                      {alat.available ? "Tersedia" : "Tidak"}
+                    </span>
+                  </td>
+                  <td className="p-3">
+                    {alat.image ? (
+                      <img
+                        src={`http://localhost:5000${alat.image}`}
+                        className="w-16 h-16 object-cover rounded"
+                        alt={alat.name}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "/placeholder.png";
                         }}
-                        className="text-red-600 hover:text-red-800 text-xs"
-                      >
-                        Hapus
-                      </button>
-                    </li>
-                  ))}
-                  {categories.length === 0 && (
-                    <li className="text-gray-500 text-sm text-center">Belum ada kategori.</li>
-                  )}
-                </ul>
+                      />
+                    ) : (
+                      <span className="text-gray-400 italic">Tidak ada gambar</span>
+                    )}
+                  </td>
+                  <td className="p-3 space-x-2">
+                    <button
+                      onClick={() => handleEdit(alat)}
+                      className="px-3 py-1 bg-yellow-500 text-white rounded"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() =>
+                        remove(alat.id, "equipment", () =>
+                          fetchData("equipment", setAlatList)
+                        )
+                      }
+                      className="px-3 py-1 bg-red-600 text-white rounded"
+                    >
+                      Hapus
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {showForm && (
+          <Popup title={editingAlat ? "Edit Alat" : "Tambah Alat"} onClose={() => setShowForm(false)}>
+            <form onSubmit={handleSubmit} className="space-y-3 text-gray-400">
+              <Input name="nama" value={formData.nama} onChange={handleChange} placeholder="Nama alat" required />
+              <Select name="kategori" value={formData.kategori} onChange={handleChange} options={categories} />
+              <textarea
+                name="deskripsi"
+                value={formData.deskripsi}
+                onChange={handleChange}
+                placeholder="Deskripsi"
+                className="w-full border p-2 rounded text-gray-400"
+                required
+              />
+              <Input name="stok" type="number" value={formData.stok} onChange={handleChange} placeholder="Stok" required />
+              <input type="file" name="gambar" onChange={handleChange} />
+              <div className="flex gap-2">
+                <input type="checkbox" name="tersedia" checked={formData.tersedia} onChange={handleChange} />
+                <label>Tersedia</label>
               </div>
-            </div>
-          )}
-        </main>
-      </div>
+              <ButtonSubmit label={editingAlat ? "Simpan Perubahan" : "Tambah"} />
+            </form>
+          </Popup>
+        )}
+
+        {showKategoriForm && (
+          <Popup title="Tambah Kategori" onClose={() => setShowKategoriForm(false)}>
+            <form onSubmit={handleSubmitKategori} className="space-y-3 text-gray-700">
+              <Input
+                value={kategoriBaru}
+                onChange={(e: any) => setKategoriBaru(e.target.value)}
+                placeholder="Nama kategori"
+                required
+              />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setKategoriGambar(file);
+                    setPreviewUrl(URL.createObjectURL(file));
+                  }
+                }}
+                className="w-full border border-gray-400 rounded px-3 py-2 text-gray-700"
+              />
+              {previewUrl && <img src={previewUrl} className="h-32 object-contain" />}
+              {kategoriError && <p className="text-red-600 text-sm">{kategoriError}</p>}
+              <ButtonSubmit label="Simpan" />
+            </form>
+
+            <hr className="my-3" />
+
+            <ul className="space-y-2">
+              {categories.map((c) => (
+                <li key={c.id} className="flex items-center justify-between border border-gray-200 rounded px-3 py-2 mb-2">
+                  <span className="text-gray-400">{c.name}</span>
+                  <button
+                    className="text-red-600 text-xs"
+                    onClick={() =>
+                      remove(c.id, "categories", () =>
+                        fetchData("categories", setCategories)
+                      )
+                    }
+                  >
+                    Hapus
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Popup>
+        )}
+      </main>
+
       <Footer />
     </div>
   );
 }
+
+/* ------------------------------ COMPONENT REUSABLE ------------------------------ */
+
+const Popup = ({ title, children, onClose }: any) => (
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div className="bg-white w-96 p-6 rounded-xl shadow-lg">
+      <h2 className="text-xl font-semibold text-[#289c93] mb-4">{title}</h2>
+      {children}
+      <button onClick={onClose} className="mt-3 px-3 py-1 bg-gray-700 rounded w-full">
+        Tutup
+      </button>
+    </div>
+  </div>
+);
+
+const Input = (props: any) => <input {...props} className="w-full border p-2 rounded" />;
+
+const Select = ({ name, value, onChange, options }: any) => (
+  <select name={name} value={value} onChange={onChange} className="w-full border p-2 rounded text-gray-400">
+    <option value="" className="text-gray-400">Pilih kategori</option>
+    {options.map((o: any) => (
+      <option key={o.id} value={o.id} className="text-gray-400">{o.name}</option>
+    ))}
+  </select>
+);
+
+const ButtonSubmit = ({ label }: any) => (
+  <button type="submit" className="px-3 py-2 bg-[#299d94] w-full text-white rounded">
+    {label}
+  </button>
+);

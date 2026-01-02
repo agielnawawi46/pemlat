@@ -1,96 +1,124 @@
+// src/controller/authController.js
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const pool = require("../config/db");
+const { User } = require("../models");
 
-exports.register = async (req, res) => {
+exports.register = async (req, res, next) => {
   try {
-    const { name, email, password, role, nim } = req.body;
+    const { name, email, password, role, nim, prodi, angkatan } = req.body;
 
-    // Validasi berdasarkan role
+    if (!role) return res.status(400).json({ message: "Role wajib diisi!" });
     if (role === "admin") {
-      if (!name || !email || !password || !role) {
+      if (!name || !email || !password) {
         return res.status(400).json({ message: "Semua field wajib diisi untuk admin!" });
       }
     } else if (role === "mahasiswa") {
-      if (!nim || !password || !role) {
+      if (!name || !nim || !password) {
         return res.status(400).json({ message: "Semua field wajib diisi untuk mahasiswa!" });
       }
     } else {
       return res.status(400).json({ message: "Role tidak valid!" });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    let result;
-
-    // Query berdasarkan role
-    if (role === "admin") {
-      result = await pool.query(
-        `INSERT INTO users (name, email, password, role)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, name, email, role`,
-        [name, email, hashedPassword, role]
-      );
-    } else if (role === "mahasiswa") {
-      result = await pool.query(
-        `INSERT INTO users (nim, password, role)
-         VALUES ($1, $2, $3)
-         RETURNING id, nim, role`,
-        [nim, hashedPassword, role]
-      );
+    // Optional: pre-check duplicate untuk pesan lebih spesifik
+    if (email) {
+      const emailUsed = await User.findOne({ where: { email } });
+      if (emailUsed) return res.status(400).json({ message: "Email sudah digunakan!" });
+    }
+    if (nim) {
+      const nimUsed = await User.findOne({ where: { nim } });
+      if (nimUsed) return res.status(400).json({ message: "NIM sudah digunakan!" });
     }
 
-    res.status(201).json({
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const userData = await User.create({
+      name,
+      email: email || null,
+      nim: nim || null,
+      password: hashedPassword,
+      role,
+      prodi: prodi || null,
+      angkatan: angkatan || null,
+      status: "Aktif",
+    });
+
+    return res.status(201).json({
       message: "Registrasi berhasil",
-      user: result.rows[0],
+      data: {
+        id: userData.id,
+        name: userData.name,
+        email: userData.email,
+        nim: userData.nim,
+        role: userData.role,
+        prodi: userData.prodi,
+        angkatan: userData.angkatan,
+        status: userData.status,
+      },
     });
   } catch (err) {
-    console.error("Register error:", err);
-    res.status(500).json({ message: "Terjadi kesalahan server" });
+    if (err.name === "SequelizeUniqueConstraintError") {
+      return res.status(400).json({ message: "Email atau NIM sudah digunakan!" });
+    }
+    return next(err);
   }
 };
 
-exports.login = async (req, res) => {
+exports.login = async (req, res, next) => {
   try {
     const { nim, email, password } = req.body;
+    if (!password) return res.status(400).json({ message: "Password wajib diisi" });
 
-    // Bisa login pakai email atau nim
-    const userQuery = nim
-      ? await pool.query("SELECT * FROM users WHERE nim = $1", [nim])
-      : await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    let user;
+    if (nim) user = await User.findOne({ where: { nim } });
+    else if (email) user = await User.findOne({ where: { email } });
+    else return res.status(400).json({ message: "Email atau NIM wajib diisi" });
 
-    const user = userQuery.rows[0];
     if (!user) return res.status(404).json({ message: "User tidak ditemukan" });
 
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(401).json({ message: "Password salah" });
 
-    const token = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" }
-    );
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ message: "Konfigurasi server belum lengkap (JWT_SECRET missing)" });
+    }
 
-    res.json({
+    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1d" });
+
+    return res.json({
       message: "Login berhasil",
-      token,
-      user: { id: user.id, name: user.name, role: user.role },
+      data: {
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email, 
+          nim: user.nim,
+          role: user.role,
+          prodi: user.prodi,
+          angkatan: user.angkatan,
+          status: user.status, 
+          avatar: user.avatar || null
+        },
+      },
     });
   } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ message: "Terjadi kesalahan server" });
+    return next(err);
   }
 };
 
-exports.me = async (req, res) => {
+exports.me = async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    const result = await pool.query(
-      "SELECT id, name, email, nim, role FROM users WHERE id = $1",
-      [userId]
-    );
-    res.json(result.rows[0]);
+    // req.user harus diisi oleh middleware auth
+    if (!req.user || !req.user.id) return res.status(401).json({ message: "Unauthorized" });
+
+    const user = await User.findByPk(req.user.id, {
+      attributes: ["id", "name", "email", "nim", "role", "prodi", "angkatan", "status"],
+    });
+    if (!user) return res.status(404).json({ message: "User tidak ditemukan" });
+
+    return res.json({ data: user });
   } catch (err) {
-    console.error("Me error:", err);
-    res.status(500).json({ message: "Gagal mengambil data user" });
+    return next(err);
   }
 };
