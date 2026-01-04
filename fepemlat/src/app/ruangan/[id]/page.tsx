@@ -99,7 +99,7 @@ export default function RoomDetailPage() {
       <Navbar />
       <div className="flex flex-1">
         <Sidebar />
-        <main className="flex-1 ml-[272px] pt-20 pb-10 px-10">
+        <main className="flex-1 ml-[272px] pt-20 pb-32 px-10">
           <div className="max-w-screen-md mx-auto">
             <div className="flex flex-col md:flex-row gap-6 bg-white border rounded-xl shadow p-5">
               {/* GAMBAR */}
@@ -188,7 +188,7 @@ export default function RoomDetailPage() {
                       <textarea
                         value={catatan}
                         onChange={(e) => setCatatan(e.target.value)}
-                        className="w-full border p-13 rounded"
+                        className="w-full border p-3 rounded"
                         rows={3}
                         required
                       />

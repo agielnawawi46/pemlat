@@ -98,7 +98,7 @@ export default function AlatDetailPage() {
       <div className="flex flex-1">
         <Sidebar />
 
-        <main className="flex-1 ml-[272px] pt-20 pb-10 px-10">
+        <main className="flex-1 ml-[272px] pt-20 pb-32 px-10">
           <div className="max-w-screen-md mx-auto">
             <div className="flex flex-col md:flex-row gap-6 bg-white border rounded-xl shadow p-5">
 

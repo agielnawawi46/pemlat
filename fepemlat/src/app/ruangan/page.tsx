@@ -5,7 +5,7 @@ import Sidebar from "@/components/Sidebar";
 import Footer from "@/components/Footer";
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
@@ -19,6 +19,9 @@ export default function RoomPage() {
   const [roomList, setRoomList] = useState<any[]>([]);
   const [buildings, setBuildings] = useState<any[]>([]);
   const [buildingTerpilih, setBuildingTerpilih] = useState<number | null>(null);
+
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [searchActive, setSearchActive] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -39,7 +42,6 @@ export default function RoomPage() {
       const json = await res.json();
       const data = json.data ?? [];
       setBuildings(Array.isArray(data) ? data : []);
-      console.log("Buildings:", data);
     } catch (err) {
       console.error("Gagal mengambil data gedung:", err);
       setBuildings([]);
@@ -52,16 +54,40 @@ export default function RoomPage() {
       const json = await res.json();
       const data = json.data ?? [];
       setRoomList(Array.isArray(data) ? data : []);
-      console.log("Rooms:", data);
     } catch (err) {
       console.error("Gagal mengambil data ruangan:", err);
       setRoomList([]);
     }
   };
 
-  const roomTerfilter = buildingTerpilih
-    ? roomList.filter((room) => room.buildingId === buildingTerpilih)
-    : [];
+  // Filter ruangan berdasarkan gedung
+  const roomBase = useMemo(() => {
+    if (buildingTerpilih == null) return roomList;
+    return roomList.filter((room) => room.buildingId === buildingTerpilih);
+  }, [roomList, buildingTerpilih]);
+
+  // Jika pencarian aktif, filter berdasarkan keyword
+  const roomFinal = useMemo(() => {
+    if (!searchActive) return roomBase;
+    const kw = searchKeyword.trim().toLowerCase();
+    if (!kw) return roomBase;
+    return roomBase.filter(
+      (room) =>
+        room.name?.toLowerCase().includes(kw) ||
+        room.description?.toLowerCase().includes(kw)
+    );
+  }, [roomBase, searchActive, searchKeyword]);
+
+  // Submit pencarian (Enter)
+  const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSearchActive(Boolean(searchKeyword.trim()));
+  };
+
+  const resetSearch = () => {
+    setSearchKeyword("");
+    setSearchActive(false);
+  };
 
   if (loading) return <p className="p-10">Loading...</p>;
 
@@ -72,22 +98,48 @@ export default function RoomPage() {
         <Sidebar />
         <main className="flex-1 ml-[272px] pt-10 pb-24 bg-white overflow-y-auto">
           <div className="p-10">
-            <h1 className="text-3xl font-bold text-[#289c93] mb-4">
-              {buildingTerpilih
-                ? `${buildings.find((b) => b.id === buildingTerpilih)?.name}`
-                : "Pilih Gedung"}
-            </h1>
+            <div className="flex justify-between items-center mb-4">
+              <h1 className="text-3xl font-bold text-[#289c93]">
+                {buildingTerpilih != null
+                  ? `${buildings.find((b) => b.id === buildingTerpilih)?.name}`
+                  : searchActive
+                  ? "Hasil Pencarian"
+                  : "Pilih Gedung"}
+              </h1>
+
+              {/* ✅ Search bar di pojok kanan */}
+              <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Cari ruangan..."
+                  value={searchKeyword}
+                  onChange={(e) => setSearchKeyword(e.target.value)}
+                  className="px-4 py-2 w-64 border border-gray-300 text-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#289c93]"
+                />
+                {searchActive && (
+                  <button
+                    type="button"
+                    onClick={resetSearch}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
+                  >
+                    Reset
+                  </button>
+                )}
+              </form>
+            </div>
 
             {/* Tampilan Gedung */}
-            {!buildingTerpilih && (
+            {!buildingTerpilih && !searchActive && (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                 {buildings.map((b) => (
                   <div
                     key={b.id}
-                    onClick={() => setBuildingTerpilih(b.id)}
+                    onClick={() => {
+                      setBuildingTerpilih(b.id);
+                      setSearchActive(false);
+                    }}
                     className="bg-white border border-gray-200 rounded-xl shadow-md hover:shadow-lg hover:-translate-y-1 transition-all p-6 cursor-pointer text-center"
                   >
-                    {/* Container gambar tetap, card tidak membesar */}
                     <div className="w-full h-40 relative mb-3">
                       <Image
                         src={
@@ -112,20 +164,22 @@ export default function RoomPage() {
             )}
 
             {/* Tampilan Ruangan */}
-            {buildingTerpilih && (
+            {(buildingTerpilih != null || searchActive) && (
               <div>
-                <button
-                  onClick={() => {
-                    setBuildingTerpilih(null);
-                    router.push("/ruangan");
-                  }}
-                  className="mt-1 mb-5 px-4 py-2 rounded bg-gray-200 text-gray-800 font-medium hover:bg-gray-300 transition-colors"
-                >
-                  ← Kembali ke Gedung
-                </button>
+                {buildingTerpilih != null && (
+                  <button
+                    onClick={() => {
+                      setBuildingTerpilih(null);
+                      router.push("/ruangan");
+                    }}
+                    className="mt-1 mb-5 px-4 py-2 rounded bg-gray-200 text-gray-800 font-medium hover:bg-gray-300 transition-colors"
+                  >
+                    ← Kembali ke Gedung
+                  </button>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {roomTerfilter.map((room) => (
+                  {roomFinal.map((room) => (
                     <Link key={room.id} href={`/ruangan/${room.id}`}>
                       <div className="bg-white border border-gray-200 rounded-2xl shadow-md hover:shadow-lg hover:-translate-y-1 transition-all p-6 cursor-pointer">
                         <div className="w-full h-40 relative mb-4">
@@ -148,9 +202,11 @@ export default function RoomPage() {
                       </div>
                     </Link>
                   ))}
-                  {roomTerfilter.length === 0 && (
+                  {roomFinal.length === 0 && (
                     <p className="text-gray-500 col-span-full">
-                      Belum ada ruangan untuk gedung ini.
+                      {searchActive
+                        ? "Tidak ada ruangan yang cocok dengan pencarian."
+                        : "Belum ada ruangan untuk gedung ini."}
                     </p>
                   )}
                 </div>

@@ -20,8 +20,8 @@ module.exports = sequelize.define("User", {
   },
   email: {
     type: DataTypes.STRING,
-    unique: true,
     allowNull: false,
+    // ⚠️ Jangan pakai `unique: true` kalau index sudah ada di DB
   },
   password: {
     type: DataTypes.STRING,
@@ -30,5 +30,13 @@ module.exports = sequelize.define("User", {
   role: {
     type: DataTypes.STRING,
     defaultValue: "mahasiswa",
+  },
+  status: {
+    type: DataTypes.STRING,
+    defaultValue: "Aktif",
+  },
+  avatar: {
+    type: DataTypes.STRING,
+    allowNull: true,
   },
 });

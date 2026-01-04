@@ -72,22 +72,8 @@ export default function PanduanPage() {
               ))}
             </div>
 
-            {/* Ilustrasi */}
-            <div className="my-12 text-center">
-              <Image
-                src="/images/guide.png"
-                alt="Panduan Sistem"
-                width={700}
-                height={400}
-                className="rounded-2xl shadow-md mx-auto"
-              />
-              <p className="text-gray-600 mt-3 text-sm italic">
-                Ilustrasi proses peminjaman alat di lingkungan kampus
-              </p>
-            </div>
-
             {/* Catatan */}
-            <div className="p-6 bg-[#e5f8f7] rounded-2xl border border-[#289c93]/20 shadow-sm">
+            <div className="p-6 bg-[#e5f8f7] rounded-2xl border border-[#289c93]/20 shadow-sm mt-10">
               <h3 className="text-lg font-semibold text-[#289c93] mb-2">
                 Catatan Penting
               </h3>

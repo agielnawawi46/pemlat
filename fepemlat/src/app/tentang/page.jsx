@@ -47,16 +47,6 @@ export default function TentangPage() {
               memastikan akurasi dan efisiensi pengelolaan.
             </p>
 
-            <div className="my-10">
-              <Image
-                src="/images/team.png"
-                alt="Team Collaboration"
-                width={800}
-                height={400}
-                className="rounded-2xl shadow-md mx-auto"
-              />
-            </div>
-
             <h2 className="text-2xl font-semibold text-[#289c93] mb-3">
               Tujuan Pengembangan
             </h2>

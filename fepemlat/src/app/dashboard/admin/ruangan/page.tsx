@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import SidebarAdmin from "@/components/SidebarAdmin";
 
 export default function KelolaRuangan() {
   const [roomList, setRoomList] = useState<any[]>([]);
@@ -20,6 +21,10 @@ export default function KelolaRuangan() {
     tersedia: true, // ✅ default tersedia
   });
 
+  const [editingGedung, setEditingGedung] = useState<any | null>(null);
+  const [editGedungNama, setEditGedungNama] = useState("");
+  const [editGedungFile, setEditGedungFile] = useState<File | null>(null);
+  const [editGedungPreviewUrl, setEditGedungPreviewUrl] = useState<string | null>(null);
   const [gedungBaru, setGedungBaru] = useState("");
   const [gedungGambar, setGedungGambar] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -129,10 +134,45 @@ export default function KelolaRuangan() {
     fetchData("buildings", setBuildings);
   };
 
+  const handleEditGedungSubmit = async (e: any) => {
+  e.preventDefault();
+  if (!editingGedung) return;
+
+  const form = new FormData();
+  form.append("name", editGedungNama);
+  if (editGedungFile) form.append("image", editGedungFile);
+
+  try {
+    const res = await fetch(`${api}/buildings/${editingGedung.id}`, {
+      method: "PUT",
+      body: form,
+    });
+    const result = await res.json();
+    if (!res.ok) {
+      setGedungError(result.error || "Gagal update gedung");
+      return;
+    }
+
+    await fetchData("buildings", setBuildings);
+
+    // reset
+    setEditingGedung(null);
+    setEditGedungNama("");
+    setEditGedungFile(null);
+    setEditGedungPreviewUrl(null);
+  } catch (err: any) {
+    setGedungError(err.message || "Terjadi kesalahan");
+  }
+};
+
   return (
     <div className="flex flex-col min-h-screen bg-white">
       <Navbar />
-      <main className="flex-1 pt-20 pb-24 px-10">
+      <div className="flex flex-1 overflow-hidden">
+      <SidebarAdmin />
+        <main className="flex-1 ml-[272px] overflow-y-auto pt-2">
+          <div className="p-10">
+      <main className="flex-1 pt-7 pb-24 px-10">
         {/* Header */}
         <div className="flex justify-between mb-2">
           <h1 className="text-3xl font-bold text-gray-800">Kelola Ruangan</h1>
@@ -153,7 +193,7 @@ export default function KelolaRuangan() {
         </div>
 
         {/* Tabel Ruangan */}
-        <div className="text-gray-700 rounded-xl shadow p-6 border overflow-x-auto">
+        <div className="text-gray-700 rounded-xl shadow p-2 border overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-200">
               <tr>
@@ -238,18 +278,84 @@ export default function KelolaRuangan() {
               <ButtonSubmit label="Simpan" />
             </form>
             <hr className="my-3" />
-            <ul className="space-y-2">
-              {buildings.map((b) => (
-                <li key={b.id} className="flex items-center justify-between border border-gray-200 rounded px-3 py-2 mb-2">
-                  <span className="text-gray-400">{b.name}</span>
-                  <button className="text-red-600 text-xs" onClick={() => remove(b.id, "buildings", () => fetchData("buildings", setBuildings))}>Hapus</button>
-                </li>
-              ))}
-            </ul>
+           <ul className="space-y-2">
+            {buildings.map((b) => (
+              <li
+                key={b.id}
+                className="flex items-center justify-between border border-gray-200 rounded px-3 py-2 mb-2"
+              >
+                <span className="text-gray-400">{b.name}</span>
+                <div className="space-x-2">
+                  <button
+                    className="text-blue-600 text-xs"
+                    onClick={() => {
+                      setEditingGedung(b);
+                      setEditGedungNama(b.name);
+                      setEditGedungPreviewUrl(b.imageUrl || "");
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="text-red-600 text-xs"
+                    onClick={() =>
+                      remove(b.id, "buildings", () =>
+                        fetchData("buildings", setBuildings)
+                      )
+                    }
+                  >
+                    Hapus
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {editingGedung && (
+            <form
+              onSubmit={handleEditGedungSubmit}
+              className="space-y-3 text-gray-700 mt-4 border-t pt-4"
+            >
+              <Input
+                value={editGedungNama}
+                onChange={(e: any) => setEditGedungNama(e.target.value)}
+                placeholder="Nama gedung"
+                required
+              />
+              <input
+                type="file"
+                accept="image/*"
+      onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          setEditGedungFile(file);
+          setEditGedungPreviewUrl(URL.createObjectURL(file));
+        }
+      }}
+      className="w-full border border-gray-400 rounded px-3 py-2 text-gray-700"
+    />
+    {editGedungPreviewUrl && (
+      <img src={editGedungPreviewUrl} className="h-32 object-contain" />
+    )}
+
+    <div className="flex gap-2">
+      <ButtonSubmit label="Update" />
+      <button
+        type="button"
+        className="px-3 py-2 bg-gray-400 text-white rounded w-1/2"
+        onClick={() => setEditingGedung(null)}
+      >
+        Batal
+      </button>
+    </div>
+  </form>
+)}
           </Popup>
         )}
       </main>
       <Footer />
+    </div>
+    </main>
+    </div>
     </div>
   );
 }

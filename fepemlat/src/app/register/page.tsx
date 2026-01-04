@@ -17,7 +17,9 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
@@ -27,11 +29,17 @@ export default function RegisterPage() {
     setSuccess("");
 
     // Validasi sesuai role
-    if (form.role === "mahasiswa" && (!form.name || !form.nim || !form.password)) {
-      setError("Nama, NIM, dan Password wajib diisi untuk mahasiswa");
+    if (
+      form.role === "mahasiswa" &&
+      (!form.name || !form.email || !form.nim || !form.prodi || !form.angkatan || !form.password)
+    ) {
+      setError("Nama, Email, NIM, Prodi, Angkatan, dan Password wajib diisi untuk mahasiswa");
       return;
     }
-    if (form.role === "admin" && (!form.name || !form.email || !form.password)) {
+    if (
+      form.role === "admin" &&
+      (!form.name || !form.email || !form.password)
+    ) {
       setError("Nama, Email, dan Password wajib diisi untuk admin");
       return;
     }
@@ -69,64 +77,7 @@ export default function RegisterPage() {
       >
         <h1 className="text-2xl font-bold text-[#299d94] mb-4">Registrasi</h1>
 
-        <input
-          type="text"
-          name="name"
-          placeholder="Nama Lengkap"
-          value={form.name}
-          onChange={handleChange}
-          className="w-full border p-2 rounded text-black"
-          required
-        />
-
-        <input
-          type="text"
-          name="nim"
-          placeholder="NIM"
-          value={form.nim}
-          onChange={handleChange}
-          className="w-full border p-2 rounded text-black"
-          required={form.role === "mahasiswa"}
-        />
-
-        <input
-          type="email"
-          name="email"
-          placeholder="Email"
-          value={form.email}
-          onChange={handleChange}
-          className="w-full border p-2 rounded text-black"
-          required={form.role === "admin"}
-        />
-
-        <input
-          type="text"
-          name="prodi"
-          placeholder="Program Studi"
-          value={form.prodi}
-          onChange={handleChange}
-          className="w-full border p-2 rounded text-black"
-        />
-
-        <input
-          type="text"
-          name="angkatan"
-          placeholder="Angkatan"
-          value={form.angkatan}
-          onChange={handleChange}
-          className="w-full border p-2 rounded text-black"
-        />
-
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          value={form.password}
-          onChange={handleChange}
-          className="w-full border p-2 rounded text-black"
-          required
-        />
-
+        {/* Pilih Role */}
         <select
           name="role"
           value={form.role}
@@ -137,6 +88,73 @@ export default function RegisterPage() {
           <option value="admin">Admin</option>
         </select>
 
+        {/* Nama */}
+        <input
+          type="text"
+          name="name"
+          placeholder="Nama Lengkap"
+          value={form.name}
+          onChange={handleChange}
+          className="w-full border p-2 rounded text-black"
+          required
+        />
+
+        {/* Email selalu muncul */}
+        <input
+          type="email"
+          name="email"
+          placeholder="Email"
+          value={form.email}
+          onChange={handleChange}
+          className="w-full border p-2 rounded text-black"
+          required
+        />
+
+        {/* Field khusus mahasiswa */}
+        {form.role === "mahasiswa" && (
+          <>
+            <input
+              type="text"
+              name="nim"
+              placeholder="NIM"
+              value={form.nim}
+              onChange={handleChange}
+              className="w-full border p-2 rounded text-black"
+              required
+            />
+            <input
+              type="text"
+              name="prodi"
+              placeholder="Program Studi"
+              value={form.prodi}
+              onChange={handleChange}
+              className="w-full border p-2 rounded text-black"
+              required
+            />
+            <input
+              type="text"
+              name="angkatan"
+              placeholder="Angkatan"
+              value={form.angkatan}
+              onChange={handleChange}
+              className="w-full border p-2 rounded text-black"
+              required
+            />
+          </>
+        )}
+
+        {/* Password */}
+        <input
+          type="password"
+          name="password"
+          placeholder="Password"
+          value={form.password}
+          onChange={handleChange}
+          className="w-full border p-2 rounded text-black"
+          required
+        />
+
+        {/* Error & Success */}
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
         {success ? (

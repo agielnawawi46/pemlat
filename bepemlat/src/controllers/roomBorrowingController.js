@@ -80,6 +80,7 @@ exports.getMyRoomBorrowings = async (req, res, next) => {
       id: r.id,
       room_name: r.Room?.name || "Ruangan tidak diketahui",
       activity: r.purpose,
+      borrowDate: r.borrowDate,
       startTime: r.startTime || "-",
       endTime: r.endTime || "-",
       status: r.status, // bisa: PENDING, APPROVED, REJECTED, CANCELLED, RETURNED
@@ -137,6 +138,7 @@ exports.getAllRoomBorrowings = async (req, res, next) => {
       User: r.User,
       namaRuangan: r.Room?.name,
       kegiatan: r.purpose,
+      borrowDate: r.borrowDate, 
       jamMulai: r.startTime,
       jamSelesai: r.endTime,
       status: r.status,

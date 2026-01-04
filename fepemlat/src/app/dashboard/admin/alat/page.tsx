@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import SidebarAdmin from "@/components/SidebarAdmin";
 
 export default function KelolaAlat() {
   const [alatList, setAlatList] = useState<any[]>([]);
@@ -20,6 +21,10 @@ export default function KelolaAlat() {
     tersedia: true,
   });
 
+  const [editingKategori, setEditingKategori] = useState<any | null>(null);
+  const [editNama, setEditNama] = useState("");
+  const [editFile, setEditFile] = useState<File | null>(null);
+  const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
   const [kategoriBaru, setKategoriBaru] = useState("");
   const [kategoriGambar, setKategoriGambar] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -60,6 +65,37 @@ export default function KelolaAlat() {
       [name]: type === "checkbox" ? checked : type === "file" ? files[0] : value,
     }));
   };
+
+  const handleEditKategoriSubmit = async (e: any) => {
+  e.preventDefault();
+  if (!editingKategori) return;
+
+  const form = new FormData();
+  form.append("name", editNama);
+  if (editFile) form.append("image", editFile);
+
+  try {
+    const res = await fetch(`${api}/categories/${editingKategori.id}`, {
+      method: "PUT",
+      body: form,
+    });
+    const result = await res.json();
+    if (!res.ok) {
+      setKategoriError(result.error || "Gagal update kategori");
+      return;
+    }
+
+    await fetchData("categories", setCategories);
+
+    // reset
+    setEditingKategori(null);
+    setEditNama("");
+    setEditFile(null);
+    setEditPreviewUrl(null);
+  } catch (err: any) {
+    setKategoriError(err.message || "Terjadi kesalahan");
+  }
+};
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
@@ -142,8 +178,11 @@ export default function KelolaAlat() {
   return (
     <div className="flex flex-col min-h-screen bg-white">
       <Navbar />
-
-      <main className="flex-1 pt-20 pb-24 px-10">
+      <div className="flex flex-1 overflow-hidden">
+      <SidebarAdmin />
+        <main className="flex-1 ml-[272px] overflow-y-auto pt-2">
+          <div className="p-10">
+      <main className="flex-1 pt-7 pb-24 px-10">
         <div className="flex justify-between mb-2">
           <h1 className="text-3xl font-bold text-gray-800">Kelola Alat</h1>
 
@@ -168,7 +207,7 @@ export default function KelolaAlat() {
           </div>
         </div>
 
-        <div className="text-gray-700 rounded-xl shadow p-6 border overflow-x-auto">
+        <div className="text-gray-700 rounded-xl shadow p-2 border overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-200">
               <tr>
@@ -287,26 +326,84 @@ export default function KelolaAlat() {
 
             <ul className="space-y-2">
               {categories.map((c) => (
-                <li key={c.id} className="flex items-center justify-between border border-gray-200 rounded px-3 py-2 mb-2">
+                <li
+                  key={c.id}
+                  className="flex items-center justify-between border border-gray-200 rounded px-3 py-2 mb-2"
+                >
                   <span className="text-gray-400">{c.name}</span>
-                  <button
-                    className="text-red-600 text-xs"
-                    onClick={() =>
-                      remove(c.id, "categories", () =>
-                        fetchData("categories", setCategories)
-                      )
-                    }
-                  >
-                    Hapus
-                  </button>
+                  <div className="space-x-2">
+                    <button
+                      className="text-blue-600 text-xs"
+                      onClick={() => {
+                        setEditingKategori(c);
+                        setEditNama(c.name);
+                        setEditPreviewUrl(c.imageUrl || "");
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="text-red-600 text-xs"
+                      onClick={() =>
+                        remove(c.id, "categories", () =>
+                          fetchData("categories", setCategories)
+                        )
+                      }
+                    >
+                      Hapus
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
+            {editingKategori && (
+              <form
+                onSubmit={handleEditKategoriSubmit}
+                className="space-y-3 text-gray-700 mt-4 border-t pt-4"
+              >
+                <Input
+                  value={editNama}
+                  onChange={(e: any) => setEditNama(e.target.value)}
+                  placeholder="Nama kategori"
+                  required
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setEditFile(file);
+                      setEditPreviewUrl(URL.createObjectURL(file));
+                    }
+                  }}
+                  className="w-full border border-gray-400 rounded px-3 py-2 text-gray-700"
+                />
+                {editPreviewUrl && (
+                  <img src={editPreviewUrl} className="h-32 object-contain" />
+                )}
+
+                {/* Tombol Update & Batal berdampingan */}
+                <div className="flex gap-2">
+                  <ButtonSubmit label="Update" />
+                  <button
+                    type="button"
+                    className="px-3 py-2 bg-gray-400 text-white rounded w-1/2"
+                    onClick={() => setEditingKategori(null)}
+                  >
+                    Batal
+                  </button>
+                </div>
+              </form>
+            )}
           </Popup>
         )}
       </main>
 
       <Footer />
+    </div>
+    </main>
+    </div>
     </div>
   );
 }
